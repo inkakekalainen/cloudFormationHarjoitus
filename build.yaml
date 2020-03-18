@@ -4,3 +4,7 @@ Description: Academy Demo CloudFormation
 Resources:
   MyS3Bucket:
     Type: AWS::S3::Bucket
+  MyQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref QueName
