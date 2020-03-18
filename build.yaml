@@ -6,5 +6,4 @@ Resources:
     Type: AWS::S3::Bucket
   MyQueue:
     Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Ref QueName
+   
