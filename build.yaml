@@ -4,30 +4,64 @@ Parameters:
   LatestAmiId:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  FrankfurtDefaultVPC:
+    Type: String
+    Default: vpc-7e1cd314
+  FrankfurtDefaultSubnetA:
+    Type: String
+    Default: subnet-a31cabc9
+  FrankfurtDefaultSubnetB:
+    Type: String
+    Default: subnet-8be20ff7
+  FrankfurtDefaultSubnetC:
+    Type: String
+    Default: subnet-259a6a69
+  InstanceTypeParameter:
+    Type: String
+    Default: t2.micro
 
 Resources:
   MyS3Bucket:
     Type: AWS::S3::Bucket
   MyQueue:
     Type: AWS::SQS::Queue
-  InkaInstance:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: !Ref LatestAmiId
-      InstanceType: t2.micro
-      SecurityGroups:
-        - !Ref InkaInstanceSecurityGroup
   InkanLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Type: application
       Scheme: internet-facing
       Subnets:
-        - subnet-a31cabc9
-        - subnet-8be20ff7
-        - subnet-259a6a69
+        - !Ref FrankfurtDefaultSubnetA
+        - !Ref FrankfurtDefaultSubnetB
+        - !Ref FrankfurtDefaultSubnetC
       SecurityGroups:
         - !Ref LoadBalancerSecurityGroup
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: DefaultTargetGroup
+      LoadBalancerArn:
+        Ref: InkanLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  DefaultTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 15
+      HealthyThresholdCount: 5
+      Matcher:
+          HttpCode: 200
+      VpcId: !Ref FrankfurtDefaultVPC
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      UnhealthyThresholdCount: 3
   InkaInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -47,7 +81,39 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
+  InkaAutoScailingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: 1
+      MaxSize: 3
+      LaunchConfigurationName:
+        Ref: InkaLaunchConfiguration
+      AvailabilityZones:
+        - "eu-central-1a"
+        - "eu-central-1b"
+        - "eu-central-1c"
+      TargetGroupARNs:
+        - Ref: DefaultTargetGroup
+  InkaLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      InstanceType:
+        Ref: InstanceTypeParameter
+      ImageId:
+        Ref: LatestAmiId
+      SecurityGroups:
+        - Ref: InkaInstanceSecurityGroup
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+            - "\n"
+            - - "#!/bin/bash"
+              - "amazon-linux-extras install epel"
+              - "amazon-linux-extras install nginx1"
+              - "systemctl start nginx"
 Outputs:
   LoadBalancer:
     Description: A reference to the Application Load Balancer
     Value: !Ref InkanLoadBalancer
+  LoadBalancerUrl:
+    Value: !GetAtt InkanLoadBalancer.DNSName
