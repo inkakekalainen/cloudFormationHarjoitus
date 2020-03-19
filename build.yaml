@@ -17,33 +17,37 @@ Resources:
       InstanceType: t2.micro
       SecurityGroups:
         - !Ref InkaInstanceSecurityGroup
-  InkaLoadBalancer:
-    Type: AWS::ElasticLoadBalancing::LoadBalancer
+  InkanLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      AvailabilityZones:
-        - eu-central-1a
-      Listeners:
-        - LoadBalancerPort: '80'
-          InstancePort: '80'
-          Protocol: HTTP
+      Type: application
+      Scheme: internet-facing
+      Subnets:
+        - subnet-a31cabc9
+        - subnet-8be20ff7
+        - subnet-259a6a69
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
   InkaInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
         GroupDescription: 'Security group for EC2 instance'
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
   LoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: ELB scgroup
+      VpcId: vpc-7e1cd314
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: '22'
-          ToPort: '22'
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: '80'
-          ToPort: '80'
+          FromPort: 80
+          ToPort: 80
           CidrIp: 0.0.0.0/0
 Outputs:
   LoadBalancer:
     Description: A reference to the Application Load Balancer
-    Value: !Ref InkaLoadBalancer
+    Value: !Ref InkanLoadBalancer
